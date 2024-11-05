@@ -1,5 +1,5 @@
 .websocket-container {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
   padding: 20px;
   font-family: Arial, sans-serif;
@@ -49,7 +49,19 @@
     }
   }
 
-.log-messages {
-  color: rgb(212, 63, 63);
-}
+  .log-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 25px;
+
+    .text-area {
+      width: 100%;
+      flex: 1;
+    }
+  }
+
+  .error-area textarea {
+    color: rgb(212, 63, 63);
+  }
 }

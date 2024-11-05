@@ -8,18 +8,20 @@ export const App = () => {
   const [isSocketOpen, setIsSocketOpen] = useState<boolean>(false);
   const [logMessage, setLogMessage] = useState<number[]>([]);
   const [errorMessage, setErrorMessage] = useState<string[]>([]);
+  const [systemLog, setSystemLog] = useState<string[]>([]);
 
   // WebSocket configuration
   const { sendMessage, lastMessage } = useWebSocket("wss://api.creatorwithai.com/ws/25", {
     onOpen: () => {
-      console.log('WebSocket connection opened');
       setIsSocketOpen(false);
+      setSystemLog(prevLog => [...prevLog, 'WebSocket connection opened']);
     },
     onMessage: () => {
       setIsSocketOpen(true);
     },
     onError: (event: Event) => {
-      console.log(`WebSocket error: ${(event as ErrorEvent).message}`)
+      const errorMessage = `WebSocket error: ${(event as ErrorEvent).message}`;
+      setSystemLog(prevLog => [...prevLog, errorMessage]);
     },
     shouldReconnect: () => true,
   });
@@ -45,34 +47,44 @@ export const App = () => {
 
   // Handle incoming WebSocket messages
   const handleMessage = useCallback((message: string) => {
+    setSystemLog(prevLog => [...prevLog, `Received: ${message}`]);
+    
+    // Check if the message indicates completion
     const doneIndex = extractDone(message);
     if (doneIndex !== null) {
       if (lastProcessedIndex !== doneIndex) {
         sendMessage(`<INDEX:${lastProcessedIndex}>`);
+        setSystemLog(prevLog => [...prevLog, `Sent: <INDEX:${lastProcessedIndex}>`]);
       } else {
         sendMessage("<CLOSE_REQ>");
+        setSystemLog(prevLog => [...prevLog, 'Sent: <CLOSE_REQ>']);
       }
       return;
     }
 
+    // Process message content
     const indexes = extractIndexes(message);
     if (indexes) {
       const { start, end, content } = indexes;
       if (start !== lastProcessedIndex) {
         sendMessage(`<INDEX:${lastProcessedIndex}>`);
+        setSystemLog(prevLog => [...prevLog, `Sent: <INDEX:${lastProcessedIndex}>`]);
         setLogMessage(prevLog => [...prevLog, lastProcessedIndex]);
-        if (logMessage.filter(num => num === lastProcessedIndex).length === 2) {
+        
+        // Check for duplicate log messages
+        if (logMessage.filter((num, index, array) => array.indexOf(num) !== index).length > 0) {
+          setErrorMessage(logMessage.filter((num, index, array) => array.indexOf(num) !== index).map(num => `Resend ${num}`));
           return;
         } else {
-          setErrorMessage(prevErrors => [...prevErrors, "Resend " + lastProcessedIndex]);
           return;
         }
       }
       setMessageHistory(prev => prev + content);
       setLastProcessedIndex(end);
     } else if (message === '<CLOSE_ACC>') {
-      console.log("Connection closed by server")
+      setSystemLog(prevLog => [...prevLog, 'Connection closed by server']);
     } else {
+      // Handle other message formats
       const parts = message.split(":");
       if (parts.length > 1) {
         setMessageHistory(prev => prev + parts.slice(1).join(":"));
@@ -80,14 +92,16 @@ export const App = () => {
         setMessageHistory(prev => prev + message);
       }
     }
-  }, [lastProcessedIndex, sendMessage]);
+  }, [lastProcessedIndex]);
 
   // Handle button click to start WebSocket connection
   const handleClickSendMessage = useCallback(() => {
     sendMessage('Write me a thread about business strategies.');
+    setSystemLog(prevLog => [...prevLog, 'Sent: Write me a thread about business strategies.']);
     setLastProcessedIndex(0);
     setMessageHistory('');
     setLogMessage([]);
+    setErrorMessage([]);
   }, [sendMessage]);
 
   // Effect to handle incoming messages
@@ -117,12 +131,22 @@ export const App = () => {
           />
         </div>
         <div className="log-area">
-          <h3>Message Log:</h3>
-          <textarea
-            value={errorMessage.join('\n')}
-            readOnly
-            style={{ width: '100%', minHeight: '200px', resize: 'vertical' }}
-          />
+          <div className="text-area error-area">
+            <h3>Error Log:</h3>
+            <textarea
+              value={errorMessage.join('\n')}
+              readOnly
+              style={{ width: '100%', minHeight: '200px', resize: 'vertical' }}
+            />
+          </div>
+          <div className="text-area">
+            <h3>System Log:</h3>
+            <textarea
+              value={systemLog.join('\n')}
+              readOnly
+              style={{ width: '100%', minHeight: '200px', resize: 'vertical' }}
+            />
+          </div>
         </div>
       </div>
     </div>
