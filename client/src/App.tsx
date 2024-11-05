@@ -6,7 +6,7 @@ export const App = () => {
   const [logMessages, setLogMessages] = useState<string[]>([]);
   const [lastProcessedIndex, setLastProcessedIndex] = useState<number>(0);
 
-  const { sendMessage, lastMessage } = useWebSocket("wss://api.creatorwithai.com/ws/1", {
+  const { sendMessage, lastMessage } = useWebSocket("wss://api.creatorwithai.com/ws/25", {
     onOpen: () => console.log('WebSocket connection opened'),
     onClose: () => console.log('WebSocket connection closed'),
     onError: (event: Event) => {
