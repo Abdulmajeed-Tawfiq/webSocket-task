@@ -3,15 +3,22 @@ import useWebSocket from 'react-use-websocket';
 
 export const App = () => {
   const [messageHistory, setMessageHistory] = useState<string>('');
-  const [logMessages, setLogMessages] = useState<string[]>([]);
   const [lastProcessedIndex, setLastProcessedIndex] = useState<number>(0);
+  const [isSocketOpen, setIsSocketOpen] = useState<boolean>(false);
+  const [logMessage, setLogMessage] = useState<number[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string[]>([]);
 
   const { sendMessage, lastMessage } = useWebSocket("wss://api.creatorwithai.com/ws/25", {
-    onOpen: () => console.log('WebSocket connection opened'),
-    onClose: () => console.log('WebSocket connection closed'),
+    onOpen: () => {
+      console.log('WebSocket connection opened');
+      setIsSocketOpen(false);
+    },
+    onMessage: () => {
+      setIsSocketOpen(true);
+    },
     onError: (event: Event) => {
-      const errorMessage = `WebSocket error: ${(event as ErrorEvent).message}`;
-      setLogMessages(prev => [...prev, errorMessage]);
+      const logMessage = `WebSocket error: ${(event as ErrorEvent).message}`;
+      console.log(logMessage)
     },
     shouldReconnect: () => true,
   });
@@ -34,7 +41,7 @@ export const App = () => {
   };
 
   const handleMessage = useCallback((message: string) => {
-    setLogMessages(prev => [...prev, `Received: ${message}`]);
+    // console.log(message)
 
     const doneIndex = extractDone(message);
     if (doneIndex !== null) {
@@ -51,12 +58,20 @@ export const App = () => {
       const { start, end, content } = indexes;
       if (start !== lastProcessedIndex) {
         sendMessage(`<INDEX:${lastProcessedIndex}>`);
-        return;
+        setLogMessage([...logMessage, lastProcessedIndex]);
+        if (logMessage.filter(num => num === lastProcessedIndex).length === 2) {
+          console.error(`resend ${lastProcessedIndex}`);
+          return;
+        } else {
+          console.log(`resend ${lastProcessedIndex}`);
+          setErrorMessage([...errorMessage, "Resend " + lastProcessedIndex]);
+          return;
+        }
       }
       setMessageHistory(prev => prev + content);
       setLastProcessedIndex(end);
     } else if (message === '<CLOSE_ACC>') {
-      setLogMessages(prev => [...prev, 'Connection closed by server']);
+      console.log("Connection closed by server")
     } else {
       const parts = message.split(":");
       if (parts.length > 1) {
@@ -69,9 +84,9 @@ export const App = () => {
 
   const handleClickSendMessage = useCallback(() => {
     sendMessage('Write me a thread about business strategies.');
-    setLogMessages(prev => [...prev, 'Sent: Write me a thread about business strategies.']);
     setLastProcessedIndex(0);
     setMessageHistory('');
+    setLogMessage([]);
   }, [sendMessage]);
 
   useEffect(() => {
@@ -85,6 +100,7 @@ export const App = () => {
       <div className="button-group">
         <button
           onClick={handleClickSendMessage}
+          disabled={isSocketOpen}
         >
           Start WebSocket Connection
         </button>
@@ -101,7 +117,7 @@ export const App = () => {
         <div className="log-area">
           <h3>Message Log:</h3>
           <textarea
-            value={logMessages.join('\n')}
+            value={errorMessage.join('\n')}
             readOnly
             style={{ width: '100%', minHeight: '200px', resize: 'vertical' }}
           />
